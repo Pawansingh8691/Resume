@@ -1,0 +1,190 @@
+import datetime
+start_time = datetime.datetime.now()
+import pandas as pd
+import pyodbc
+
+import mysql.connector as p
+import sqlalchemy
+from sqlalchemy import create_engine, text
+
+engine = create_engine("mysql+pymysql://username:password@servername/databasename")
+
+# Establishing connection for SQL SERVER and My SQL
+
+ss_con = pyodbc.connect("Driver={ODBC Driver 17 for SQL Server};"
+                      "Server=tcp:xxxxxxxxxx.ummeedxxxxxx.com;"
+                      "Database=ENTigerxxxxxUmmeed;"
+                      "UID=bi_reporting;"
+                      "PWD=xxxxxxxxxxxxxxxx;"
+                      "Encryption=no")
+
+# Importing all required libraries
+
+ss_query = """with cte as (Select *, 
+Case Grid When  'BL |0 to 10|No' then 'SCM' 
+When'BL |0 to 10|Yes' then 'NCM' 
+When'BL |GT 10|No' then 'CC' 
+When'BL |GT 10|Yes' then 'CC' 
+When'HL |0 to 7.5|No' then 'SCM' 
+When'HL |0 to 7.5|Yes' then 'SCM' 
+When'HL |12.5 to 20|No' then 'SCM' 
+When'HL |12.5 to 20|Yes' then 'NCM' 
+When'HL |20 to 30|No' then 'NCM' 
+When'HL |20 to 30|Yes' then 'CC' 
+When'HL |7.5 to 12.5|No' then 'SCM' 
+When'HL |7.5 to 12.5|Yes' then 'NCM' 
+When'HL |GT 30|No' then 'CC' 
+When'HL |GT 30|Yes' then 'CC' 
+When'LAP |0 to 10|No' then 'SCM' 
+When'LAP |0 to 10|Yes' then 'NCM' 
+When'LAP |GT 10|No' then 'CC' 
+When'LAP |GT 10|Yes' then 'CC' 
+When'STBL |0 to 7.5|No' then 'NCM' 
+When'STBL |0 to 7.5|Yes' then 'NCM' end as Auth, Case 'Lead_Status' 
+When 'FinanciallyApproved' then 'Stock' 
+When 'FinanciallyApprovedInterim' then 'Stock' 
+When 'FFARecommendCreditQueryOpen' then 'BTR' 
+When 'FFACreditQueryOpen' then 'BTR' 
+When 'FFACreditQueryOpen' then 'BTR' 
+When 'FFAAppraisedCreditQueryOpen' then 'BTR' Else 'Pipeline' end as Remarks,
+row_number() over(partition by Lead_Number order by Last_Modified_Date desc) as rnk
+From
+( Select Lead_Number as 'Lead_Number', 
+Loan_Amount as 'Loan_Amount', 
+(Case when Product = 'HomeLoan' then 'HL' else Product end) as 'Product_Code', 
+Scheme as 'Scheme', 
+(Case Branch when 'HEAD OFFICE' then 'GURGAON' when 'GHAZIABAD' then 'LAXMI NAGAR' When 'East Delhi' then 'LAXMI NAGAR' when 'West Delhi' then 'JANAKPURI' else Branch end ) as 'Branch_Name', 
+(Case When Branch in ('AMBALA','BHIWANI','CHANDIGARH','DEHRADUN','HARIDWAR','KURALI','HISSAR','KAITHAL','YAMUNA NAGAR','KARNAL','KURUKSHETRA','PANIPAT','RAJPURA','ROHTAK','SIRSA','SONIPAT', 'YAMUNA NAGAR') then 'HARYANA' 
+When Branch in('East Delhi','GHAZIABAD','GURGAON','JANAKPURI','LAXMI NAGAR','NOIDA','West Delhi','HEAD OFFICE') then 'NCR' 
+When Branch in ('AGRA','AJMER','ALWAR','BHILWARA','BIKANER','CHITTORGARH','JAIPUR','JAIPUR-2','JHUNJHUNU','BHIM','JODHPUR','KOTA','PALI','SIKAR','SIKAR ROAD','UDAIPUR') then 'RAJASTHAN' ELSE State end ) as 'State_Name', 
+Customer_Name as 'Customer_Name', 
+Lead_Status, 
+Last_Modified_Date, 
+Created_Date as 'Created_Date', 
+Logged_In_Date as 'LoggedInDate', 
+FinanciallyApprovedDate as 'FinanciallyApprovedDate',
+FinalApprovedDate as 'FinalApprovedDate',
+Move_To_LMS_Date as 'Move_to_LMS_Date' , 
+FinanciallyApprovedInterim_date as 'FinanciallyApprovedInterim_date', 
+FFACMAppraised_Date as 'FFACMAppraised_Date',
+FFAHCMAppraised_date as 'FFAHCMAppraised_date',
+FFASCMRecommend_DAte as 'FFASCMRecommend_DAte', 
+PD_Status as 'PD_Status', case when PD_Status is null then null else PD_Date end as 'PD_Date', 
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end as Critical_Deviation, 
+Case When (Product='HomeLoan'and Loan_amount <=750000) then Concat('HL |0 to 7.5|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When (Product='HomeLoan'and (Loan_amount >750000 and Loan_Amount <=1250000)) then Concat ('HL |7.5 to 12.5|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When (Product='HomeLoan'and (Loan_amount >1250000 and Loan_Amount <=2000000)) then Concat('HL |12.5 to 20|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When (Product='HomeLoan'and (Loan_amount >2000000 and Loan_Amount <=3000000)) then Concat('HL |20 to 30|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='HomeLoan'and Loan_amount >3000000  then Concat('HL |GT 30|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='STBL'and Loan_amount <=750000  then Concat('STBL |0 to 7.5|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='BL' and Loan_amount <=1000000  then Concat('BL |0 to 10|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='BL' and Loan_amount > 1000000  then Concat('BL |GT 10|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='LAP' and Loan_amount <=1000000  then Concat('LAP |0 to 10|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) 
+When Product='LAP' and Loan_amount > 1000000  then Concat('LAP |GT 10|',
+Case when Count_Of_Critical_Deviation is null then 'No' else 'Yes' end) end as Grid 
+From 
+(select  LB.CustomId as Lead_number, Lb.xLoanAmount as Loan_amount,(select code from CategoryItem b where b.Id= LB.ProductId )Product, 
+(select code from CategoryItem b where b.Id= LB.subProductId )Scheme, branch.FirstName AS Branch,
+(select Name from State a where a.id = (select JSON_VALUE(GLM.LeadData, '$.lsstate')))as State,
+CONCAT(LA.FirstName,' ',LA.LastName) as Customer_Name,(select JSON_VALUE(GLM.LeadData, '$.mobileNumber'))as Customer_Contact,
+(select JSON_VALUE(GLM.LeadData, '$.applicantType'))as ApplicantType,LWS.discriminator As Lead_Status,
+cast(Lb.CreatedDate as date) as Created_Date, lb.LastModifiedDate as Last_Modified_Date,
+cast((Select Min(a.createdDate) from UmmeedLeadWorkflowHistory a where a.LeadApplicationStatus = 'Loggedin' and a.LeadBaseId= Lb.ID) as date) as Logged_In_Date,
+CONCAT(AU.FirstName,' ',AU.LastName) AS Lead_Generator,AU.EmployeeId as Lead_Gen_Emp_Code,
+JSON_VALUE(GLM.LeadData, '$.source') AS Deal_Source_Type,
+(Case When JSON_VALUE(GLM.LeadData, '$.source') = 'PowerPartner' then (Select DealerName from UmmeedDealerDetail 
+Where JSON_VALUE(GLM.LeadData, '$.sourceDescription') = UmmeedDealerDetail.DealerCode)
+When JSON_VALUE(GLM.LeadData, '$.source') = 'Telephone' then (Select Concat(AU.EmployeeId,'-',AU.FirstName,' ',Au.MiddleName,' ', Au.LastName) 
+from ApplicationUser AU Where AU.ID =JSON_VALUE(GLM.LeadData, '$.sourceDescription')) 
+When JSON_VALUE(GLM.LeadData, '$.source') = 'DST' then(Select Concat(AU.EmployeeId,'-',AU.FirstName,' ',Au.MiddleName,' ', Au.LastName) 
+from ApplicationUser AU where AU.ID = LB.CreatedBy)
+When JSON_VALUE(GLM.LeadData, '$.source') = 'DirectSellingAgent' then(Select DealerName from UmmeedDealerDetail 
+Where JSON_VALUE(GLM.LeadData, '$.sourceDescription') = UmmeedDealerDetail.DealerCode)else JSON_VALUE(
+GLM.LeadData, '$.sourceDescription') end ) as Deal_Source_Description,cast((Select min (a.createdDate) from 
+UmmeedLeadWorkflowHistory a where a.LeadApplicationStatus = 'FinanciallyApproved' and a.LeadBaseId= Lb.ID) 
+as date) as FinanciallyApprovedDate,Cast((select top 1 CreatedDate from UmmeedLeadWorkflowHistory where 
+LeadApplicationStatus='FinalApproved' and LeadBaseId=lb.Id) as date) as FinalApprovedDate,cast((select top 
+1 CreatedDate from UmmeedLeadWorkflowHistory where LeadApplicationStatus='FinanciallyApprovedInterim' and 
+LeadBaseId=lb.Id) as date) as FinanciallyApprovedInterim_date,cast((select top 1 CreatedDate from 
+UmmeedLeadWorkflowHistory where LeadApplicationStatus='MoveToLMS' and LeadBaseId=lb.Id) as date) as 
+Move_To_LMS_Date,cast((select top 1 CreatedDate from UmmeedLeadWorkflowHistory where 
+LeadApplicationStatus='FFACMAppraised' and LeadBaseId=lb.Id) as date) as FFACMAppraised_Date,cast((select 
+top 1 CreatedDate from UmmeedLeadWorkflowHistory where LeadApplicationStatus='FFAHCMAppraised' and 
+LeadBaseId=lb.Id) as date) as FFAHCMAppraised_date,cast((select top 1 CreatedDate from 
+UmmeedLeadWorkflowHistory where LeadApplicationStatus='FFASCMRecommend' and LeadBaseId=lb.Id) as date) as 
+FFASCMRecommend_DAte,(select top 1 Status from NBFCLeadPDObservations where  GroupLeadMemberId =GLM.Id and GLM. PrimaryGroupMember = '1') as 
+PD_Status,cast((select top 1 CreatedDate from NBFCLeadPDObservations where  GroupLeadId =lb.Id and GLM. PrimaryGroupMember= '1' order by CreatedDate desc) as date) as 
+PD_Date from LeadBase LB Left Join LeadWorkflowState LWS on lb.LeadWorkflowStateId = LWS.ID LEFT JOIN 
+ApplicationOrg AS branch ON LB.BranchId = branch.Id left join GroupLeadMember GLM on GLM.GroupLeadId1= 
+LB.ID Left join LeadApplicant LA on GLM.LeadApplicantId = LA.ID Left Join ApplicationUser AU on 
+AU.ID=LB.CreatedBy where Lb.CustomID like 'G5%' 
+and Lb.LastModifiedDate >= GETDATE()-1
+and lb.isdeleted != 1  and Lb.xLoanAmount not in ('2222222.00')and JSON_VALUE(
+GLM.LeadData, '$.applicantType') = 'Applicant' and CONCAT(AU.FirstName,'',AU.LastName) not Like '%test%' 
+And CONCAT(AU.FirstName,'',AU.LastName) not Like '%USER%' ) abc Left Join (Select Lb.CustomID, Count(1) as 
+Count_Of_Critical_Deviation From Leadbase lb left join NBFCLeadDeviations Dev on lb.id = Dev.GroupLeadId 
+Where Dev.DeviationType = 'Critical' Group by  Lb.CustomID) pqr on Abc.Lead_number = pqr.CustomID )qqq)
+select Lead_Number, Loan_Amount, Product_Code, Scheme, Branch_Name, State_Name, Customer_Name, Lead_Status, 
+cast(FORMAT(CONVERT(DATETIME, SWITCHOFFSET(Last_Modified_Date, '+00:00')), 'yyyy-MM-dd HH:mm:ss') as date) AS Lead_Status_Change_Date,
+Created_Date, LoggedInDate, FinanciallyApprovedDate, FinalApprovedDate, Move_to_LMS_Date, FinanciallyApprovedInterim_date,
+FFACMAppraised_Date, FFAHCMAppraised_date, FFASCMRecommend_DAte, PD_Status,
+PD_Date,  Critical_Deviation, Grid, Auth, Remarks, GETDATE() as DataRefreshDateTime
+from cte where rnk = 1"""
+
+# and Lb.CreatedDate >= '2023-04-01'
+
+# Printing source data
+
+source_data = pd.read_sql(ss_query, ss_con)
+
+# Transforming source data
+
+source_data1 = source_data[['Lead_Number','Loan_Amount','Product_Code','Scheme','Branch_Name','State_Name','Customer_Name','Lead_Status','Lead_Status_Change_Date','Created_Date','LoggedInDate','FinanciallyApprovedDate','FinalApprovedDate','Move_to_LMS_Date',
+                                'FinanciallyApprovedInterim_date','FFACMAppraised_Date','FFAHCMAppraised_date','FFASCMRecommend_DAte','PD_Status','PD_Date','Critical_Deviation','Grid','Auth','Remarks']]
+
+
+# fetching data available in target table
+
+target_data = pd.read_sql("""SELECT Lead_Number,Loan_Amount,Product_Code,Scheme,Branch_Name,State_Name,Customer_Name,Lead_Status,Lead_Status_Change_Date,Created_Date,LoggedInDate,FinanciallyApprovedDate,FinalApprovedDate,Move_to_LMS_Date,
+FinanciallyApprovedInterim_date,FFACMAppraised_Date,FFAHCMAppraised_date,FFASCMRecommend_DAte,PD_Status,PD_Date,Critical_Deviation,Grid,Auth,Remarks FROM test_bi
+where Created_date >= '2023-01-01'""", engine)
+
+print("Target_Data :",len(target_data))
+
+matching_data = source_data1[source_data1.apply(tuple,1).isin(target_data.apply(tuple,1))]
+print("Matching_Data :",len(matching_data))
+
+non_matching_data = source_data1[~source_data1.apply(tuple,1).isin(target_data.apply(tuple,1))]
+print("Non_Matching_Data :",len(non_matching_data))
+
+new_data = source_data[~source_data['Lead_Number'].apply(tuple,1).isin(target_data['Lead_Number'].apply(tuple,1))]
+print("New_Data :",len(new_data))
+
+updated_data = non_matching_data[~non_matching_data['Lead_Number'].isin(new_data['Lead_Number'])]
+print("Updated_Data :",len(updated_data))
+
+# Inserting new records in destination table
+
+new_data.to_sql("test_bi", engine, if_exists = 'append', index = False)
+
+def update_to_sql(df, table_name, key_name):
+    engine = create_engine("mysql+pymysql://DWH:ENyZE#82@192.168.93.20/dwh")
+
+    with engine.begin() as cnx:
+        for index, row in df.iterrows():
+            update_values = ', '.join(f"{column} = :{column}" for column in df.columns)
+            update_stmt = text(f'UPDATE {table_name} SET {update_values} WHERE {key_name} = :key')
+            cnx.execute(update_stmt, {**row, 'key': row[key_name]})
+            
+update_to_sql(updated_data, 'test_bi', 'Lead_Number')
+
+
